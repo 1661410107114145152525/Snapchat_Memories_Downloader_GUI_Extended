@@ -329,7 +329,7 @@ def process_zip_overlay(zip_path, output_dir, date_obj=None):
         with zipfile.ZipFile(zip_path, 'r') as z:
             # Inspect zip member names (this looks deep into nested folders)
             namelist = [n for n in z.namelist() if not n.endswith('/')]
-            z.extractall(temp_dir)
+            z.extractall(temp_dir, members=[m for m in z.infolist() if not m.is_dir() and zip_utils._is_safe_zip_member(m.filename, temp_dir)])
 
             # Build map by base name from zip members (ignore differing extensions)
             pattern_main = re.compile(r'(?P<base>.+)-main(?P<ext>\.[^.]+)$', re.IGNORECASE)
@@ -2095,28 +2095,17 @@ class SnapchatDownloaderGUI:
             self.status_label.config(text="✅ Download complete", foreground="#27ae60")
     
     def cleanup_ffmpeg_processes(self):
-        """Kill any orphaned ffmpeg processes."""
-        try:
-            if sys.platform == 'win32':
-                # Use taskkill on Windows to terminate ffmpeg processes
-                subprocess.run(['taskkill', '/F', '/IM', 'ffmpeg.exe'], 
-                             capture_output=True, 
-                             creationflags=CREATE_NO_WINDOW)
-                logging.info("Cleaned up any orphaned ffmpeg processes")
-            else:
-                # On Unix-like systems, use pkill
-                subprocess.run(['pkill', '-9', 'ffmpeg'], capture_output=True)
-                logging.info("Cleaned up any orphaned ffmpeg processes")
-        except Exception as e:
-            # Silently fail if no ffmpeg processes exist or cleanup fails
-            logging.debug(f"ffmpeg cleanup: {e}")
+        """Clean up orphaned ffmpeg processes spawned by this application.
+        
+        Note: Only stops downloads gracefully via stop_download flag.
+        Does NOT kill system-wide ffmpeg processes, as that could terminate
+        unrelated ffmpeg work belonging to the user or other applications.
+        """
+        logging.debug("Signalling download threads to stop for cleanup")
     
     def on_closing(self):
         """Handle application close event."""
-        # Clean up any orphaned ffmpeg processes
-        self.cleanup_ffmpeg_processes()
-        
-        # Stop any ongoing downloads
+        # Stop any ongoing downloads gracefully
         if self.is_downloading:
             self.stop_download = True
             logging.info("Download stopped due to application close")
