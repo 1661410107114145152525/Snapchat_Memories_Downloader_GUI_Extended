@@ -329,7 +329,7 @@ def process_zip_overlay(zip_path, output_dir, date_obj=None):
         with zipfile.ZipFile(zip_path, 'r') as z:
             # Inspect zip member names (this looks deep into nested folders)
             namelist = [n for n in z.namelist() if not n.endswith('/')]
-            z.extractall(temp_dir, members=[m for m in z.infolist() if not m.is_dir() and zip_utils._is_safe_zip_member(m.filename, temp_dir)])
+            zip_utils._safe_extractall(z, temp_dir)
 
             # Build map by base name from zip members (ignore differing extensions)
             pattern_main = re.compile(r'(?P<base>.+)-main(?P<ext>\.[^.]+)$', re.IGNORECASE)
@@ -2101,7 +2101,8 @@ class SnapchatDownloaderGUI:
         Does NOT kill system-wide ffmpeg processes, as that could terminate
         unrelated ffmpeg work belonging to the user or other applications.
         """
-        logging.debug("Signalling download threads to stop for cleanup")
+        self.stop_download = True
+        logging.debug("Signalled download threads to stop for cleanup")
     
     def on_closing(self):
         """Handle application close event."""

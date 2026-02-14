@@ -33,7 +33,12 @@ def _is_safe_zip_member(member_name, target_dir):
     """
     target = Path(target_dir).resolve()
     member_path = (target / member_name).resolve()
-    return str(member_path).startswith(str(target) + os.sep) or member_path == target
+    # Use is_relative_to (Python 3.9+) for robust cross-platform path comparison
+    try:
+        member_path.relative_to(target)
+        return True
+    except ValueError:
+        return False
 
 
 def _safe_extractall(zip_ref, target_dir):
