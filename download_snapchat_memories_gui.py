@@ -798,7 +798,8 @@ class SnapchatDownloaderGUI:
         self.output_path = tk.StringVar(value="downloads")
         # Conversion is automatic when tools are available; no checkbox in UI
         self.max_retries = tk.IntVar(value=3)  # Number of download attempts (initial + retries)
-        default_threads = 3
+        cpu_count = os.cpu_count() or 2
+        default_threads = max(1, min(3, cpu_count))
         self.max_threads = tk.IntVar(value=default_threads)
         self.is_downloading = False
         self.stop_download = False
@@ -1044,11 +1045,11 @@ class SnapchatDownloaderGUI:
         threads_label = ttk.Label(threads_frame, text="Multi-Download Count:", style="Header.TLabel")
         threads_label.pack(side=tk.LEFT)
 
-        threads_spin = tk.Spinbox(threads_frame, from_=1, to=16, width=5, textvariable=self.max_threads)
+        threads_spin = tk.Spinbox(threads_frame, from_=1, to=8, width=5, textvariable=self.max_threads)
         threads_spin.pack(side=tk.LEFT, padx=(8, 0))
 
         threads_info = ttk.Label(input_card,
-                                 text="Number of concurrent downloads (higher uses more bandwidth/CPU)",
+                                 text="Number of concurrent downloads (1-3 recommended; higher values use more bandwidth/CPU)",
                                  style="Info.TLabel")
         threads_info.pack(anchor=tk.W, pady=(6, 10))
 
@@ -1678,6 +1679,11 @@ class SnapchatDownloaderGUI:
                 if download_success:
                     log_local("  ✓ Downloaded")
 
+                    # Check stop flag after download before heavy processing
+                    if self.stop_download:
+                        log_local("  ⚠ Cancelled by user")
+                        return logs, True, False
+
                     # If merged files were created from ZIP overlay, apply metadata to each
                     if merged_files:
                         log_local(f"  ℹ Processing {len(merged_files)} merged file(s) from ZIP overlay")
@@ -1946,6 +1952,10 @@ class SnapchatDownloaderGUI:
             stop_logged = False
             executor = None
 
+            # Adaptive concurrency: track consecutive errors to reduce load
+            consecutive_errors = 0
+            active_limit = max_workers  # Current effective concurrency limit
+
             def submit_next():
                 try:
                     idx, item = next(items_iter)
@@ -1965,7 +1975,7 @@ class SnapchatDownloaderGUI:
 
             executor = ThreadPoolExecutor(max_workers=max_workers)
             try:
-                while len(futures) < max_workers and submit_next():
+                while len(futures) < active_limit and submit_next():
                     pass
 
                 while futures:
@@ -2013,8 +2023,19 @@ class SnapchatDownloaderGUI:
                                     # Switch UI to downloading state
                                     self.download_btn.config(text="⬇ Downloading...")
                             success_count += 1
+                            # Adaptive: reset error streak on success, restore limit
+                            consecutive_errors = 0
+                            if active_limit < max_workers:
+                                active_limit = min(active_limit + 1, max_workers)
+                                self.log(f"  ↑ Concurrency restored to {active_limit}")
                         if error:
                             error_count += 1
+                            # Adaptive: reduce concurrency on consecutive errors
+                            consecutive_errors += 1
+                            if consecutive_errors >= 3 and active_limit > 1:
+                                active_limit = max(1, active_limit - 1)
+                                self.log(f"  ↓ Reducing concurrency to {active_limit} (consecutive errors: {consecutive_errors})")
+                                time.sleep(1)  # Brief pause to let resources recover
 
                         # Update progress with detailed status
                         downloaded_count = success_count - skipped_count
@@ -2043,7 +2064,8 @@ class SnapchatDownloaderGUI:
                             pending_future.cancel()
                         break  # Exit the loop immediately
 
-                    while len(futures) < max_workers and submit_next():
+                    # Submit new tasks up to the adaptive limit
+                    while len(futures) < active_limit and submit_next():
                         pass
             finally:
                 # Shutdown executor without waiting for running tasks when stopped
