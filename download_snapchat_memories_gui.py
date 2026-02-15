@@ -72,6 +72,7 @@ logging.basicConfig(
 
 # --- Delegated to refactored utility module ---
 import snap_utils, exif_utils, video_utils, zip_utils, downloader
+import network_security
 
 # Windows-specific subprocess flag to prevent command windows from popping up
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == 'win32' else 0
@@ -500,6 +501,9 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
 
     Returns (True, None) on success, (False, None) on failure, or (True, [merged_files]) if ZIP overlay was processed.
     """
+    # --- Security: validate URL before any network access ---
+    network_security.validate_url(url)
+
     last_error = None
 
     for attempt in range(max_retries):
@@ -625,9 +629,10 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
 
         except requests.exceptions.RequestException as req_err:
             last_error = req_err
-            logging.warning(f"Download attempt {attempt + 1}/{max_retries} failed: {req_err}")
+            safe_msg = network_security.sanitize_error_message(req_err)
+            logging.warning(f"Download attempt {attempt + 1}/{max_retries} failed: {safe_msg}")
             if progress_callback:
-                progress_callback(f"Download attempt {attempt + 1}/{max_retries} failed: {req_err}")
+                progress_callback(f"Download attempt {attempt + 1}/{max_retries} failed: {safe_msg}")
             # Clean up possible partial files
             try:
                 if os.path.exists(output_path):
@@ -637,9 +642,10 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
             continue
         except Exception as err:
             last_error = err
-            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {err}", exc_info=True)
+            safe_msg = network_security.sanitize_error_message(err)
+            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
             if progress_callback:
-                progress_callback(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {err}")
+                progress_callback(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
             try:
                 if os.path.exists(output_path):
                     os.remove(output_path)
@@ -648,9 +654,10 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
             continue
 
     # Exhausted retries
-    logging.error(f"Download failed after {max_retries} attempts. Last error: {last_error}")
+    safe_last = network_security.sanitize_error_message(last_error) if last_error else "Unknown"
+    logging.error(f"Download failed after {max_retries} attempts. Last error: {safe_last}")
     if progress_callback:
-        progress_callback(f"Download failed after {max_retries} attempts. Last error: {last_error}")
+        progress_callback(f"Download failed after {max_retries} attempts. Last error: {safe_last}")
     return (False, None)
 
 
