@@ -5,6 +5,7 @@ import requests
 from pathlib import Path
 import zip_utils
 import snap_utils
+import network_security
 from pathlib import Path
 import tempfile
 import threading
@@ -21,6 +22,9 @@ def _get_thread_id():
 
 
 def download_media(url, output_path, max_retries=3, progress_callback=None, date_obj=None):
+    # --- Security: validate URL before any network access ---
+    network_security.validate_url(url)
+
     last_error = None
     
     # Create thread-safe temporary file path
@@ -42,8 +46,8 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
                 if progress_callback:
                     progress_callback(f"Attempting download (1/{max_retries})")
 
-            # Log the URL and output path for debugging duplicate file issues
-            logging.info(f"Downloading from: {url}")
+            # Log sanitised URL and output path for debugging (no tokens in logs)
+            logging.info(f"Downloading from: {network_security.sanitize_url_for_logging(url)}")
             logging.info(f"Saving to: {output_path}")
             
             response = requests.get(url, stream=True, timeout=60)
@@ -169,9 +173,10 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
 
         except requests.exceptions.RequestException as req_err:
             last_error = req_err
-            logging.warning(f"Download attempt {attempt + 1}/{max_retries} failed: {req_err}")
+            safe_msg = network_security.sanitize_error_message(req_err)
+            logging.warning(f"Download attempt {attempt + 1}/{max_retries} failed: {safe_msg}")
             if progress_callback:
-                progress_callback(f"Download attempt {attempt + 1}/{max_retries} failed: {req_err}")
+                progress_callback(f"Download attempt {attempt + 1}/{max_retries} failed: {safe_msg}")
             # Clean up any temp files
             try:
                 for pattern in [str(output_path) + temp_suffix, str(output_path) + temp_suffix + ".zip"]:
@@ -182,9 +187,10 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
             continue
         except Exception as err:
             last_error = err
-            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {err}", exc_info=True)
+            safe_msg = network_security.sanitize_error_message(err)
+            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
             if progress_callback:
-                progress_callback(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {err}")
+                progress_callback(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
             # Clean up any temp files
             try:
                 for pattern in [str(output_path) + temp_suffix, str(output_path) + temp_suffix + ".zip"]:
@@ -194,7 +200,8 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
                 pass
             continue
 
-    logging.error(f"Download failed after {max_retries} attempts. Last error: {last_error}")
+    safe_last = network_security.sanitize_error_message(last_error) if last_error else "Unknown"
+    logging.error(f"Download failed after {max_retries} attempts. Last error: {safe_last}")
     if progress_callback:
-        progress_callback(f"Download failed after {max_retries} attempts. Last error: {last_error}")
+        progress_callback(f"Download failed after {max_retries} attempts. Last error: {safe_last}")
     return (False, None)
