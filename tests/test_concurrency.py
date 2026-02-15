@@ -16,8 +16,13 @@ def test_zip_utils_ffmpeg_communicate_no_blocking_loop():
     import inspect
     source = inspect.getsource(zip_utils)
     # The old pattern used a while True + readline loop which could block
-    assert 'while True' not in source or 'readline' not in source, \
-        "zip_utils should use communicate() instead of while True + readline()"
+    # Check that proc.stderr.readline() is not called (comments are OK)
+    import re
+    # Match actual readline() calls (not in comments)
+    code_lines = [l for l in source.splitlines() if l.strip() and not l.strip().startswith('#')]
+    has_blocking_readline = any('.readline()' in l for l in code_lines)
+    assert not has_blocking_readline, \
+        "zip_utils should not use blocking readline() calls — use communicate() instead"
     # Verify communicate is used
     assert 'proc.communicate' in source, \
         "zip_utils should use proc.communicate() for reading ffmpeg output"
@@ -66,13 +71,13 @@ def test_adaptive_concurrency_logic():
     assert active_limit == 3, f"After 3 errors, limit should reduce from 4 to 3, got {active_limit}"
     assert consecutive_errors == 3
 
-    # Simulate more errors -> should reduce further
+    # Simulate 3 more errors -> should reduce further (6 total)
     for _ in range(3):
         consecutive_errors += 1
         if consecutive_errors >= 3 and active_limit > 1:
             active_limit = max(1, active_limit - 1)
 
-    assert active_limit == 1, f"After 6 more errors, limit should be 1, got {active_limit}"
+    assert active_limit == 1, f"After 6 total errors, limit should be 1, got {active_limit}"
 
     # Simulate success -> should recover
     consecutive_errors = 0
