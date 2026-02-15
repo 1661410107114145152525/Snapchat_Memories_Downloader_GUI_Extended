@@ -83,8 +83,7 @@ class TestSanitizeUrlForLogging:
         )
         assert "secret_token_123" not in result
         assert "/dmd/memories" not in result
-        assert "app.snapchat.com" in result
-        assert "[REDACTED]" in result
+        assert result == "https://app.snapchat.com/[REDACTED]"
 
     def test_handles_empty_string(self):
         result = network_security.sanitize_url_for_logging("")
@@ -106,8 +105,7 @@ class TestSanitizeErrorMessage:
         result = network_security.sanitize_error_message(msg)
         assert "SECRET" not in result
         assert "token" not in result
-        assert "app.snapchat.com" in result
-        assert "[REDACTED]" in result
+        assert result == "404 Client Error: Not Found for url: https://app.snapchat.com/[REDACTED]"
 
     def test_preserves_non_url_text(self):
         msg = "Connection timed out after 60 seconds"
