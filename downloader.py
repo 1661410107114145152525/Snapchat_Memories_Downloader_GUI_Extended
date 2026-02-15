@@ -6,7 +6,6 @@ from pathlib import Path
 import zip_utils
 import snap_utils
 import network_security
-from pathlib import Path
 import tempfile
 import threading
 
@@ -188,7 +187,7 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
         except Exception as err:
             last_error = err
             safe_msg = network_security.sanitize_error_message(err)
-            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
+            logging.error(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}", exc_info=True)
             if progress_callback:
                 progress_callback(f"Unexpected error during download attempt {attempt + 1}/{max_retries}: {safe_msg}")
             # Clean up any temp files

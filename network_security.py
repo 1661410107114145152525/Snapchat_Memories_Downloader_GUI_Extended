@@ -2,7 +2,7 @@
 Network security module for Snapchat Memories Downloader.
 
 Enforces URL allowlisting so the application can ONLY connect to known
-Snapchat-controlled infrastructure domains.  Provides URL sanitisation
+Snapchat-controlled infrastructure domains.  Provides URL sanitization
 helpers so that sensitive download URLs (which carry authentication tokens
 in query parameters) are never written to log files in full.
 

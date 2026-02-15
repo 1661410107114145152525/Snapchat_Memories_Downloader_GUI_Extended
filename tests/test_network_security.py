@@ -1,5 +1,5 @@
 """
-Tests for the network_security module – URL allowlisting and log sanitisation.
+Tests for the network_security module – URL allowlisting and log sanitization.
 """
 import sys
 import os
