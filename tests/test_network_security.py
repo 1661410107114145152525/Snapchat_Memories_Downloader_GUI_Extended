@@ -19,11 +19,8 @@ class TestIsAllowedUrl:
     @pytest.mark.parametrize("url", [
         "https://app.snapchat.com/dmd/memories?id=abc123",
         "https://memories.snapchat.com/download?token=xyz",
-        "https://bolt-gcdn.sc-cdn.net/some/path?sig=token",
-        "https://cf-st.sc-cdn.net/media/file.jpg",
-        "https://api.snap.com/resource",
+        "https://us-east1-aws.api.snapchat.com/dmd/mm?uid=test",
         "https://snapchat.com/path",
-        "https://sc-cdn.net/path",
         "http://snapchat.com/fallback",
     ])
     def test_allowed_urls(self, url):
@@ -43,6 +40,11 @@ class TestIsAllowedUrl:
         "https://developer.snapchat.com.attacker.org/exfil",
         "https://s3.amazonaws.com/bucket/file",
         "https://storage.googleapis.com/bucket/file",
+        "https://bolt-gcdn.sc-cdn.net/some/path?sig=token",
+        "https://cf-st.sc-cdn.net/media/file.jpg",
+        "https://api.snap.com/resource",
+        "https://sc-cdn.net/path",
+        "https://snap.com/path",
     ])
     def test_blocked_urls(self, url):
         assert network_security.is_allowed_url(url) is False
@@ -113,7 +115,7 @@ class TestSanitizeErrorMessage:
         assert result == msg
 
     def test_handles_multiple_urls(self):
-        msg = "Redirect from https://a.snapchat.com/x?t=1 to https://b.sc-cdn.net/y?s=2"
+        msg = "Redirect from https://a.snapchat.com/x?t=1 to https://b.snapchat.com/y?s=2"
         result = network_security.sanitize_error_message(msg)
         assert "t=1" not in result
         assert "s=2" not in result

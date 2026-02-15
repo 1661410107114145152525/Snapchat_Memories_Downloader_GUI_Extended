@@ -8,13 +8,12 @@ in query parameters) are never written to log files in full.
 
 Allowed domains
 ---------------
-Only Snapchat's own CDN / infrastructure hostnames are permitted.
-These are **not** developer-accessible endpoints (Snap Kit, Login Kit, etc.)
-and cannot be intercepted or controlled by third-party Snap developers.
+Only ``*.snapchat.com`` is permitted — this is the sole domain used by
+Snapchat's memory download URLs (confirmed patterns include
+``us-east1-aws.api.snapchat.com`` and ``app.snapchat.com``).
 
-* ``*.snapchat.com``   – main Snapchat services (memories API, etc.)
-* ``*.snap.com``       – Snap Inc. infrastructure
-* ``*.sc-cdn.net``     – Snapchat's dedicated CDN for media delivery
+The allowlist is intentionally kept as narrow as possible to minimise the
+attack surface.
 """
 
 import logging
@@ -29,15 +28,11 @@ logger = logging.getLogger(__name__)
 # Suffix-based matching (covers all subdomains)
 ALLOWED_DOMAIN_SUFFIXES = (
     ".snapchat.com",
-    ".snap.com",
-    ".sc-cdn.net",
 )
 
 # Exact bare-domain matching (no subdomain)
 ALLOWED_EXACT_DOMAINS = (
     "snapchat.com",
-    "snap.com",
-    "sc-cdn.net",
 )
 
 # ---------------------------------------------------------------------------
