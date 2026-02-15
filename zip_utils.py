@@ -171,33 +171,26 @@ def merge_video_overlay(main_video_path, overlay_image_path, output_path):
             creationflags=CREATE_NO_WINDOW
         )
         
-        # Read stderr for progress (ffmpeg writes progress to stderr)
-        stderr_output = []
+        # Read output and wait for completion with timeout
+        # Using communicate() prevents potential deadlocks from readline() blocking
         try:
-            while True:
-                line = proc.stderr.readline()
-                if not line and proc.poll() is not None:
-                    break
-                if line:
-                    stderr_output.append(line)
-                    # Log progress lines (they contain 'time=' or 'frame=')
-                    if 'time=' in line or 'frame=' in line:
-                        logging.debug(f"ffmpeg progress: {line.strip()}")
-        except Exception as read_error:
-            logging.warning(f"Error reading ffmpeg output: {read_error}")
-        
-        # Wait for completion with timeout
-        try:
-            proc.wait(timeout=300)
+            _, stderr_text = proc.communicate(timeout=300)
+            # Log progress lines from stderr
+            for line in stderr_text.splitlines():
+                if 'time=' in line or 'frame=' in line:
+                    logging.debug(f"ffmpeg progress: {line.strip()}")
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.communicate()  # Clean up after kill
             logging.error("ffmpeg overlay merge timed out after 300 seconds")
             return False, "ffmpeg timeout"
-        
-        stderr_text = ''.join(stderr_output)
-        proc.returncode = proc.poll()
-        stderr_text = ''.join(stderr_output)
-        proc.returncode = proc.poll()
+        except Exception as read_error:
+            logging.warning(f"Error reading ffmpeg output: {read_error}")
+            stderr_text = ""
+            try:
+                proc.kill()
+            except Exception:
+                pass
         
         if proc.returncode != 0:
             logging.error(f"ffmpeg overlay merge failed with return code {proc.returncode}")

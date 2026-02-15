@@ -21,6 +21,13 @@ def _get_thread_id():
 
 
 def download_media(url, output_path, max_retries=3, progress_callback=None, date_obj=None):
+    """Download media from URL to output_path with retry support.
+
+    Returns:
+        Tuple of (success: bool, merged_files: list or None).
+        (True, None) on normal download, (True, [paths]) for ZIP overlays,
+        (False, None) on failure after all retries.
+    """
     # --- Security: validate URL before any network access ---
     network_security.validate_url(url)
 
@@ -49,7 +56,7 @@ def download_media(url, output_path, max_retries=3, progress_callback=None, date
             logging.info(f"Downloading from: {network_security.sanitize_url_for_logging(url)}")
             logging.info(f"Saving to: {output_path}")
             
-            response = requests.get(url, stream=True, timeout=60)
+            response = requests.get(url, stream=True, timeout=(15, 45))
             response.raise_for_status()
 
             iterator = response.iter_content(chunk_size=8192)
