@@ -21,6 +21,43 @@ except Exception:
     HAS_PIL = False
 
 
+def _is_safe_zip_member(member_name, target_dir):
+    """Check if a ZIP member path is safe (no path traversal).
+
+    Args:
+        member_name: The name/path of the ZIP member
+        target_dir: The intended extraction directory
+
+    Returns:
+        True if the member path resolves within target_dir, False otherwise
+    """
+    target = Path(target_dir).resolve()
+    member_path = (target / member_name).resolve()
+    # Use is_relative_to (Python 3.9+) for robust cross-platform path comparison
+    try:
+        member_path.relative_to(target)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_extractall(zip_ref, target_dir):
+    """Extract all members from a ZIP file, skipping any with unsafe paths.
+
+    Args:
+        zip_ref: An open zipfile.ZipFile object
+        target_dir: The directory to extract into
+    """
+    target_dir = str(target_dir)
+    for member in zip_ref.infolist():
+        if member.is_dir():
+            continue
+        if not _is_safe_zip_member(member.filename, target_dir):
+            logging.warning(f"Skipping potentially unsafe ZIP member: {member.filename}")
+            continue
+        zip_ref.extract(member, target_dir)
+
+
 def extract_media_from_zip(zip_path, output_path):
     temp_dir = None
     try:
@@ -36,6 +73,9 @@ def extract_media_from_zip(zip_path, output_path):
             logging.info(f"Extracting: {media_file}")
             temp_dir = Path(output_path).parent / "temp_extract"
             temp_dir.mkdir(exist_ok=True)
+            if not _is_safe_zip_member(media_file, temp_dir):
+                logging.warning(f"Skipping unsafe ZIP member path: {media_file}")
+                return False
             extracted_path = zip_ref.extract(media_file, temp_dir)
             shutil.move(extracted_path, output_path)
             logging.info(f"Successfully extracted media to: {output_path}")
@@ -285,7 +325,7 @@ def process_zip_overlay(zip_path, output_dir, date_obj=None):
         with zipfile.ZipFile(zip_path, 'r') as z:
             namelist = [n for n in z.namelist() if not n.endswith('/')]
             logging.info(f"ZIP contains {len(namelist)} files: {namelist}")
-            z.extractall(temp_dir)
+            _safe_extractall(z, temp_dir)
 
             pattern_main = re.compile(r'(?P<base>.+)-main(?P<ext>\.[^.]+)$', re.IGNORECASE)
             pattern_overlay = re.compile(r'(?P<base>.+)-overlay(?P<ext>\.[^.]+)$', re.IGNORECASE)
